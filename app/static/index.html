@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Adjusted viewport for native PWA feel (prevents zooming when tapping inputs/buttons) and supports notch safe areas -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#faf6ef" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Vono" />
+  <link rel="apple-touch-icon" href="/static/icon.png" />
+  <link rel="manifest" href="/static/manifest.json" />
+
+  <title>Vono - Voice Notepad</title>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet" />
+  <style>
+    /* Added tap highlight removal for native app feel */
+    *, *::before, *::after { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      -webkit-tap-highlight-color: transparent; 
+    }
+
+    :root {
+      --paper: #faf6ef;
+      --paper-dark: #f0e9dc;
+      --ink: #2c2416;
+      --ink-light: #6b5f4e;
+      --ink-faint: #b8a99a;
+      --rule: #ddd3c3;
+      --accent: #c0392b;
+      --accent-soft: #e8d5d3;
+      --done-bg: #f5f0e8;
+      --shadow: rgba(44,36,22,0.12);
+      --red-line: #e8b4b0;
+    }
+
+    html, body {
+      height: 100%;
+      background: #e8e0d4;
+      background-image:
+        radial-gradient(ellipse at 20% 50%, #d4c9b8 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, #ddd3c5 0%, transparent 50%);
+      font-family: 'Crimson Pro', Georgia, serif;
+      color: var(--ink);
+      min-height: 100vh;
+      /* Prevents 'pull-to-refresh' bounce on mobile to feel like a real app */
+      overscroll-behavior-y: none; 
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      /* Added env(safe-area-inset-top) to push below mobile notches */
+      padding: max(2.5rem, env(safe-area-inset-top)) 1rem 1rem;
+    }
+    header h1 {
+      font-family: 'Caveat', cursive;
+      font-size: clamp(2.2rem, 6vw, 3.2rem);
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.5px;
+    }
+    header h1 span { color: var(--accent); }
+    header p {
+      font-size: 1rem;
+      color: var(--ink-light);
+      font-style: italic;
+      margin-top: 0.25rem;
+    }
+
+    /* ── Notebook ── */
+    .notebook {
+      max-width: 680px;
+      margin: 1.5rem auto 7rem;
+      background: var(--paper);
+      border-radius: 3px;
+      box-shadow:
+        0 1px 0 #c9bfaf,
+        0 2px 0 #bfb5a5,
+        4px 6px 24px var(--shadow),
+        8px 10px 40px rgba(44,36,22,0.07);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .notebook::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 52px;
+      height: 100%;
+      background: var(--paper-dark);
+      border-right: 2px solid var(--rule);
+      z-index: 1;
+    }
+    .spiral-holes {
+      position: absolute;
+      top: 0; left: 0;
+      width: 52px;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      padding-top: 28px;
+    }
+    .hole {
+      width: 18px; height: 18px;
+      background: #e8e0d4;
+      border-radius: 50%;
+      border: 1.5px solid #c9bfaf;
+      margin-bottom: 36px;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
+
+    .notebook-inner {
+      margin-left: 52px;
+      position: relative;
+    }
+    .notebook-inner::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 28px;
+      width: 1.5px;
+      height: 100%;
+      background: var(--red-line);
+      opacity: 0.7;
+    }
+
+    .notebook-header {
+      padding: 1.5rem 1.5rem 0.5rem 2.5rem;
+      border-bottom: 1.5px solid var(--rule);
+      background: linear-gradient(to bottom, #fdf9f3, var(--paper));
+    }
+    .notebook-date {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--ink-faint);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+    .notebook-title {
+      font-family: 'Caveat', cursive;
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .task-section {
+      padding: 0.5rem 1.5rem 1rem 2.5rem;
+      min-height: 400px; /* Keep minimum writing space */
+    }
+
+    .empty-state {
+      padding: 3rem 1rem;
+      text-align: center;
+      color: var(--ink-faint);
+    }
+    .empty-state svg {
+      width: 48px; height: 48px;
+      opacity: 0.3;
+      margin-bottom: 1rem;
+    }
+    .empty-state p {
+      font-style: italic;
+      font-size: 1.05rem;
+    }
+
+    .task-line {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid var(--rule);
+      animation: writein 0.4s ease forwards;
+      opacity: 0;
+    }
+    @keyframes writein {
+      from { opacity: 0; transform: translateX(-6px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .task-bullet {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+      margin-left: 2px;
+    }
+    .task-text {
+      flex: 1;
+      font-size: 1.1rem;
+      color: var(--ink);
+      line-height: 1.4;
+    }
+    .task-time {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--ink-faint);
+      background: var(--paper-dark);
+      padding: 2px 7px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+    .task-time.none { display: none; }
+
+    .done-btn {
+      width: 30px; height: 30px; /* Increased for mobile tappability */
+      border-radius: 50%;
+      border: 1.5px solid var(--ink-faint);
+      background: transparent;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+      color: transparent;
+    }
+    .done-btn:hover, .done-btn:active {
+      border-color: #27ae60;
+      background: #eafaf1;
+      color: #27ae60;
+    }
+    .done-btn svg { width: 14px; height: 14px; }
+
+    .priority-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .priority-dot.high   { background: #e74c3c; }
+    .priority-dot.medium { background: #f39c12; }
+    .priority-dot.low    { background: #27ae60; }
+
+    .done-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 0 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .done-divider span {
+      font-family: 'Caveat', cursive;
+      font-size: 1rem;
+      color: var(--ink-faint);
+      white-space: nowrap;
+    }
+    .done-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--rule);
+    }
+
+    .task-line.done-item .task-text {
+      text-decoration: line-through;
+      color: var(--ink-faint);
+    }
+    .task-line.done-item .task-bullet { background: var(--ink-faint); }
+
+    .processing-bar {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 1.25rem;
+      background: var(--paper-dark);
+      border-bottom: 1px solid var(--rule);
+      font-style: italic;
+      color: var(--ink-light);
+      font-size: 0.95rem;
+    }
+    .processing-bar.visible { display: flex; }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--rule);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Voice Controls ── */
+    .voice-dock {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      /* Added safe area padding for modern iPhones with bottom bars */
+      padding: 1rem 1rem max(1.5rem, env(safe-area-inset-bottom));
+      background: linear-gradient(to top, #e0d8cc 0%, #e0d8cc 40%, transparent 100%);
+      z-index: 100;
+    }
+
+    .waveform {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 28px;
+      margin-bottom: 0.75rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .waveform.active { opacity: 1; }
+    .waveform .bar {
+      width: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      animation: wave 0.8s ease-in-out infinite;
+      height: 4px;
+    }
+    .waveform .bar:nth-child(1)  { animation-delay: 0.0s; }
+    .waveform .bar:nth-child(2)  { animation-delay: 0.1s; }
+    .waveform .bar:nth-child(3)  { animation-delay: 0.2s; }
+    .waveform .bar:nth-child(4)  { animation-delay: 0.3s; }
+    .waveform .bar:nth-child(5)  { animation-delay: 0.15s; }
+    .waveform .bar:nth-child(6)  { animation-delay: 0.05s; }
+    .waveform .bar:nth-child(7)  { animation-delay: 0.25s; }
+    @keyframes wave {
+      0%, 100% { height: 4px; }
+      50%       { height: 22px; }
+    }
+
+    .mic-hint {
+      font-family: 'Caveat', cursive;
+      font-size: 1rem;
+      color: var(--ink-light);
+      margin-bottom: 0.6rem;
+      min-height: 1.4rem;
+      text-align: center;
+      transition: color 0.3s;
+    }
+    .mic-hint.recording { color: var(--accent); }
+
+    .btn-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .mic-btn {
+      width: 68px; height: 68px; /* Slightly larger for easier mobile tapping */
+      border-radius: 50%;
+      border: none;
+      background: var(--ink);
+      color: #faf6ef;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 18px rgba(44,36,22,0.3), 0 1px 4px rgba(44,36,22,0.2);
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .mic-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(44,36,22,0.35); }
+    .mic-btn:active { transform: translateY(0); }
+    .mic-btn.recording {
+      background: var(--accent);
+      animation: pulse-ring 1.4s ease-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%   { box-shadow: 0 0 0 0 rgba(192,57,43,0.5), 0 4px 18px rgba(44,36,22,0.3); }
+      70%  { box-shadow: 0 0 0 16px rgba(192,57,43,0), 0 4px 18px rgba(44,36,22,0.3); }
+      100% { box-shadow: 0 0 0 0 rgba(192,57,43,0), 0 4px 18px rgba(44,36,22,0.3); }
+    }
+    .mic-btn svg { width: 28px; height: 28px; }
+
+    .send-btn {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: none;
+      background: #27ae60;
+      color: white;
+      cursor: pointer;
+      display: none;
+      align-items: center; justify-content: center;
+      box-shadow: 0 3px 12px rgba(39,174,96,0.35);
+      transition: all 0.2s ease;
+      animation: popIn 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    }
+    .send-btn.visible { display: flex; }
+    .send-btn:hover { transform: scale(1.08); }
+    .send-btn svg { width: 22px; height: 22px; }
+    @keyframes popIn {
+      from { transform: scale(0.5); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+
+    .toast {
+      position: fixed;
+      /* Top spacing avoids iOS/Android dynamic islands and notches */
+      top: max(1.5rem, env(safe-area-inset-top)); 
+      left: 50%; transform: translateX(-50%);
+      background: #2c2416;
+      color: #faf6ef;
+      padding: 0.7rem 1.25rem;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-family: 'DM Mono', monospace;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.2);
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      max-width: 90vw;
+      text-align: center;
+    }
+    .toast.show { opacity: 1; }
+
+    /* ── Mobile PWA Optimization ── */
+    /* On mobile, make the entire screen look like the actual notepad */
+    @media (max-width: 680px) {
+      html, body {
+        background: var(--paper); /* Fills the whole phone background */
+        background-image: none; 
+      }
+      header {
+        background: var(--paper); /* Match notebook */
+      }
+      .notebook {
+        margin: 0;
+        border-radius: 0;
+        box-shadow: none; /* Removes 'box inside a box' feeling */
+        min-height: calc(100vh - 100px);
+      }
+      .voice-dock {
+        /* Gradient perfectly blends into the paper color on mobile */
+        background: linear-gradient(to top, rgba(250, 246, 239, 1) 40%, rgba(250, 246, 239, 0) 100%);
+      }
+      /* Adjust hole punches so they don't look weird on the far left edge */
+      .hole {
+        background: var(--paper-dark);
+        border: 1.5px solid var(--rule);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Vo<span>no</span></h1>
+  <p>speak your day into existence</p>
+</header>
+
+<div class="notebook">
+  <div class="spiral-holes" id="spiralHoles"></div>
+
+  <div class="notebook-inner">
+    <div class="processing-bar" id="processingBar">
+      <div class="spinner"></div>
+      <span id="processingText">Listening to your day…</span>
+    </div>
+
+    <div class="notebook-header">
+      <div class="notebook-date" id="notebookDate"></div>
+      <div class="notebook-title">Today's Plan</div>
+    </div>
+
+    <div class="task-section" id="taskSection">
+      <div class="empty-state" id="emptyState">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M8 12h32M8 20h32M8 28h20"/>
+          <circle cx="38" cy="32" r="8"/>
+          <path d="M35 32l2 2 4-4"/>
+        </svg>
+        <p>Tap the mic and speak your plans —<br/>they'll appear here like magic.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="voice-dock">
+  <div class="waveform" id="waveform">
+    <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+    <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+    <div class="bar"></div>
+  </div>
+  <div class="mic-hint" id="micHint">tap to start recording</div>
+  <div class="btn-row">
+    <button class="send-btn" id="sendBtn" title="Send recording">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+    <button class="mic-btn" id="micBtn" title="Start recording">
+      <svg id="iconMic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="11" rx="3"/>
+        <path d="M19 10a7 7 0 01-14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── Date ──
+  const dateEl = document.getElementById('notebookDate');
+  dateEl.textContent = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  // ── Spiral holes ──
+  const spiralEl = document.getElementById('spiralHoles');
+  for (let i = 0; i < 20; i++) {
+    const d = document.createElement('div');
+    d.className = 'hole';
+    spiralEl.appendChild(d);
+  }
+
+  // ── DOM Elements ──
+  const micBtn        = document.getElementById('micBtn');
+  const sendBtn       = document.getElementById('sendBtn');
+  const waveform      = document.getElementById('waveform');
+  const micHint       = document.getElementById('micHint');
+  const processingBar = document.getElementById('processingBar');
+  const processingTxt = document.getElementById('processingText');
+  const taskSection   = document.getElementById('taskSection');
+  const emptyState    = document.getElementById('emptyState');
+
+  // ── State & Local Storage ──
+  let mediaRecorder = null;
+  let audioChunks  =[];
+  let isRecording  = false;
+  
+  // Load saved tasks or start empty
+  let tasksState = JSON.parse(localStorage.getItem('vono_tasks')) ||[];
+
+  function saveTasks() {
+    localStorage.setItem('vono_tasks', JSON.stringify(tasksState));
+  }
+
+  // ── Toast ──
+  function showToast(msg, duration = 3500) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), duration);
+  }
+
+  // ── Recording ──
+  micBtn.addEventListener('click', async () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      await startRecording();
+    }
+  });
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks  =[];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+      mediaRecorder.start();
+      isRecording = true;
+
+      micBtn.classList.add('recording');
+      waveform.classList.add('active');
+      micHint.textContent = 'recording… tap mic to stop';
+      micHint.classList.add('recording');
+      sendBtn.classList.add('visible');
+    } catch (err) {
+      showToast('Microphone access denied. Please allow mic access.');
+    }
+  }
+
+  function stopRecording() {
+    if (!mediaRecorder) return;
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    isRecording = false;
+
+    micBtn.classList.remove('recording');
+    waveform.classList.remove('active');
+    micHint.textContent = 'tap to start recording';
+    micHint.classList.remove('recording');
+    sendBtn.classList.remove('visible');
+  }
+
+  // ── Send ──
+  sendBtn.addEventListener('click', () => {
+    if (isRecording) stopRecording();
+    setTimeout(sendAudio, 200); 
+  });
+
+  async function sendAudio() {
+    if (!audioChunks.length) { showToast('No audio recorded.'); return; }
+
+    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+    audioChunks =[];
+
+    if (blob.size === 0) { showToast('Recording was empty.'); return; }
+
+    processingBar.classList.add('visible');
+    processingTxt.textContent = 'Listening to your day…';
+    micBtn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('file', blob, 'recording.webm');
+
+    try {
+      const res = await fetch('/transcribe', { method: 'POST', body: formData });
+
+      if (!res.ok) { showToast('Server error. Try again.'); return; }
+
+      const data = await res.json();
+      const newTasks = data.tasks?.tasks ||[];
+      
+      if(newTasks.length > 0) {
+        // Add a unique ID and isDone status to new tasks
+        const formattedTasks = newTasks.map(t => ({
+          ...t, 
+          id: Date.now() + Math.random().toString(36).substr(2, 9),
+          isDone: false
+        }));
+        
+        tasksState =[...tasksState, ...formattedTasks];
+        saveTasks();
+        renderAllTasks();
+      } else {
+        showToast("Couldn't hear any tasks. Try again.");
+      }
+
+    } catch (err) {
+      showToast('Network error. Check your connection.');
+    } finally {
+      processingBar.classList.remove('visible');
+      micBtn.disabled = false;
+    }
+  }
+
+  // ── Rendering Engine ──
+  function renderAllTasks() {
+    // 1. Clear current DOM tasks (but keep the empty state div)
+    document.querySelectorAll('.task-line, .done-divider').forEach(el => el.remove());
+
+    // 2. Handle empty state
+    if (tasksState.length === 0) {
+      emptyState.style.display = 'block';
+      return;
+    }
+    emptyState.style.display = 'none';
+
+    // 3. Separate pending and completed tasks
+    const pendingTasks = tasksState.filter(t => !t.isDone);
+    const completedTasks = tasksState.filter(t => t.isDone);
+
+    // 4. Render pending
+    pendingTasks.forEach((task, i) => {
+      taskSection.appendChild(buildTaskLine(task, i * 50));
+    });
+
+    // 5. Render completed (with divider)
+    if (completedTasks.length > 0) {
+      const doneDivider = document.createElement('div');
+      doneDivider.className = 'done-divider';
+      doneDivider.innerHTML = `
+        <span>Done ✓</span>
+        <button onclick="clearDone()" style="margin-left:auto; background:none; border:none; color:var(--accent); font-size:0.8rem; cursor:pointer;">Clear</button>
+      `;
+      taskSection.appendChild(doneDivider);
+
+      completedTasks.forEach((task) => {
+        const line = buildTaskLine(task, 0);
+        line.classList.add('done-item');
+        line.style.opacity = '1';
+        line.style.animation = 'none';
+        
+        // Remove the circular done button for completed tasks
+        const btn = line.querySelector('.done-btn');
+        if (btn) btn.remove();
+        
+        taskSection.appendChild(line);
+      });
+    }
+  }
+
+  function buildTaskLine(task, delay = 0) {
+    const line = document.createElement('div');
+    line.className = 'task-line';
+    line.style.animationDelay = delay + 'ms';
+
+    const dot = document.createElement('div');
+    dot.className = `priority-dot ${task.priority || 'low'}`;
+
+    const bullet = document.createElement('div');
+    bullet.className = 'task-bullet';
+
+    const text = document.createElement('div');
+    text.className = 'task-text';
+    text.textContent = task.title;
+
+    const time = document.createElement('div');
+    const t = (task.time || 'none').toLowerCase();
+    time.className = `task-time ${t === 'none' ? 'none' : ''}`;
+    time.textContent = t !== 'none' ? t : '';
+
+    line.appendChild(dot);
+    line.appendChild(bullet);
+    line.appendChild(text);
+    line.appendChild(time);
+
+    // Only add the done button if it's not done yet
+    if (!task.isDone) {
+      const doneBtn = document.createElement('button');
+      doneBtn.className = 'done-btn';
+      doneBtn.title = 'Mark as done';
+      doneBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+      doneBtn.addEventListener('click', () => markDone(task.id));
+      line.appendChild(doneBtn);
+    }
+
+    return line;
+  }
+
+  function markDone(id) {
+    const taskIndex = tasksState.findIndex(t => t.id === id);
+    if (taskIndex > -1) {
+      tasksState[taskIndex].isDone = true;
+      saveTasks();
+      renderAllTasks();
+    }
+  }
+
+  // Bonus: Let users clear their finished tasks!
+  window.clearDone = function() {
+    tasksState = tasksState.filter(t => !t.isDone);
+    saveTasks();
+    renderAllTasks();
+  };
+
+  // ── PWA Service Worker ──
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/static/sw.js')
+        .catch(err => console.warn('PWA SW failed:', err));
+    });
+  }
+
+  // Initial render on page load
+  renderAllTasks();
+</script>
+</body>
+</html>

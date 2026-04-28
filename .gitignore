@@ -1,0 +1,72 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# IDE / Editors
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# FastAPI / backend cache
+# =========================
+*.sqlite3
+*.db
+
+# =========================
+# PWA / frontend build (if you expand later)
+# =========================
+dist/
+build/
+node_modules/
+
+# =========================
+# Test / coverage
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =========================
+# OS files
+# =========================
+Thumbs.db
+.DS_Store
+
+# =========================
+# Audio / temporary files (your project specific)
+# =========================
+*.wav
+*.mp3
+*.webm
+*.m4a
+recording.*
+temp_audio/

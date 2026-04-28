@@ -1,0 +1,21 @@
+{
+  "name": "Vono - Voice Notepad",
+  "short_name": "Vono",
+  "description": "Speak your day into existence.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf6ef",
+  "theme_color": "#faf6ef",
+  "icons":[
+    {
+      "src": "/static/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
